@@ -11,106 +11,78 @@ import { Calendar } from "lucide-react";
 import { Train, Search, ArrowRight, UserCircle, Tag } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
+import { ticketService } from "@/services/api";
+import { toast } from "@/components/ui/use-toast";
 
-// Mock ticket data
-const mockTickets = [
-  {
-    id: "T12345",
-    train: {
-      name: "Rajdhani Express",
-      number: "12301",
-      from: "New Delhi",
-      to: "Mumbai Central",
-      departure: "16:50",
-      arrival: "08:35",
-      duration: "15h 45m",
-    },
-    journeyDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
-    bookingDate: new Date(),
-    passengers: [
-      { name: "John Doe", age: "28", gender: "male" }
-    ],
-    class: "2A",
-    status: "confirmed",
-    totalAmount: 1850
-  },
-  {
-    id: "T12346",
-    train: {
-      name: "Shatabdi Express",
-      number: "12002",
-      from: "New Delhi",
-      to: "Bhopal",
-      departure: "06:15",
-      arrival: "14:10",
-      duration: "7h 55m",
-    },
-    journeyDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days from now
-    bookingDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
-    passengers: [
-      { name: "Jane Doe", age: "26", gender: "female" },
-      { name: "John Doe", age: "28", gender: "male" }
-    ],
-    class: "EC",
-    status: "confirmed",
-    totalAmount: 3200
-  },
-  {
-    id: "T12347",
-    train: {
-      name: "Duronto Express",
-      number: "12213",
-      from: "Mumbai CST",
-      to: "Delhi Sarai Rohilla",
-      departure: "23:10",
-      arrival: "16:25",
-      duration: "17h 15m",
-    },
-    journeyDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // 5 days ago
-    bookingDate: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000), // 15 days ago
-    passengers: [
-      { name: "John Doe", age: "28", gender: "male" }
-    ],
-    class: "3A",
-    status: "completed",
-    totalAmount: 1450
-  },
-  {
-    id: "T12348",
-    train: {
-      name: "Vande Bharat Express",
-      number: "22435",
-      from: "New Delhi",
-      to: "Varanasi",
-      departure: "06:00",
-      arrival: "14:00",
-      duration: "8h 00m",
-    },
-    journeyDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000), // 10 days ago
-    bookingDate: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000), // 20 days ago
-    passengers: [
-      { name: "John Doe", age: "28", gender: "male" },
-      { name: "Jane Doe", age: "26", gender: "female" }
-    ],
-    class: "EC",
-    status: "cancelled",
-    totalAmount: 4200
-  }
-];
+// Define ticket interface
+interface Passenger {
+  name: string;
+  age: string;
+  gender: string;
+}
+
+interface TicketTrain {
+  name: string;
+  number: string;
+  from: string;
+  to: string;
+  departure: string;
+  arrival: string;
+  duration: string;
+}
+
+interface Ticket {
+  id: string;
+  train: TicketTrain;
+  journeyDate: string;
+  bookingDate: string;
+  class: string;
+  status: string;
+  totalAmount: number;
+  passengers: Passenger[];
+}
 
 const MyTickets = () => {
   const { user } = useAuth();
-  const [tickets, setTickets] = useState(mockTickets);
-  const [filteredTickets, setFilteredTickets] = useState(mockTickets);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [filteredTickets, setFilteredTickets] = useState<Ticket[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   
+  // Fetch tickets on component mount
   useEffect(() => {
-    // Simulate loading data
-    setTimeout(() => {
+    const fetchTickets = async () => {
+      if (!user) return;
+      
+      try {
+        const data = await ticketService.getAllTickets();
+        // Convert dates to Date objects
+        const formattedTickets = data.map((ticket: any) => ({
+          ...ticket,
+          journeyDate: new Date(ticket.journeyDate),
+          bookingDate: new Date(ticket.bookingDate)
+        }));
+        
+        setTickets(formattedTickets);
+        setFilteredTickets(formattedTickets);
+      } catch (error) {
+        console.error("Error fetching tickets:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to load tickets. Please try again later.",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    if (user) {
+      fetchTickets();
+    } else {
       setIsLoading(false);
-    }, 1500);
-  }, []);
+    }
+  }, [user]);
   
   useEffect(() => {
     // Filter tickets based on search query
@@ -128,6 +100,36 @@ const MyTickets = () => {
       setFilteredTickets(filtered);
     }
   }, [searchQuery, tickets]);
+  
+  // Cancel ticket handler
+  const handleCancelTicket = async (ticketId: string) => {
+    if (!confirm("Are you sure you want to cancel this ticket?")) {
+      return;
+    }
+    
+    try {
+      await ticketService.cancelTicket(ticketId);
+      
+      // Update local state
+      setTickets(prevTickets => 
+        prevTickets.map(ticket => 
+          ticket.id === ticketId ? { ...ticket, status: 'cancelled' } : ticket
+        )
+      );
+      
+      toast({
+        title: "Ticket Cancelled",
+        description: "Your ticket has been cancelled successfully",
+      });
+    } catch (error) {
+      console.error("Error cancelling ticket:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to cancel ticket. Please try again later.",
+      });
+    }
+  };
   
   // Split tickets by status
   const upcomingTickets = filteredTickets.filter(ticket => 

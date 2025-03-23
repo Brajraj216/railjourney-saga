@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -28,90 +27,25 @@ import {
   BookOpen,
   ChevronDown
 } from "lucide-react";
+import { trainService } from "@/services/api";
+import { toast } from "@/components/ui/use-toast";
 
-// Mock train data
-const trainData = [
-  {
-    id: "1",
-    name: "Rajdhani Express",
-    number: "12301",
-    from: "New Delhi",
-    to: "Mumbai Central",
-    departure: "16:50",
-    arrival: "08:35",
-    duration: "15h 45m",
-    price: 1450,
-    availability: "Available",
-    rating: 4.7,
-    type: "Superfast",
-    amenities: ["food", "wifi", "entertainment", "charging", "bedding"],
-    classes: ["SL", "3A", "2A", "1A"]
-  },
-  {
-    id: "2",
-    name: "Shatabdi Express",
-    number: "12002",
-    from: "New Delhi",
-    to: "Bhopal",
-    departure: "06:15",
-    arrival: "14:10",
-    duration: "7h 55m",
-    price: 850,
-    availability: "Limited",
-    rating: 4.5,
-    type: "Premium",
-    amenities: ["food", "wifi", "entertainment", "charging"],
-    classes: ["CC", "EC"]
-  },
-  {
-    id: "3",
-    name: "Duronto Express",
-    number: "12213",
-    from: "Mumbai CST",
-    to: "Delhi Sarai Rohilla",
-    departure: "23:10",
-    arrival: "16:25",
-    duration: "17h 15m",
-    price: 1250,
-    availability: "Available",
-    rating: 4.3,
-    type: "Superfast",
-    amenities: ["food", "bedding", "charging"],
-    classes: ["SL", "3A", "2A"]
-  },
-  {
-    id: "4",
-    name: "Vande Bharat Express",
-    number: "22435",
-    from: "New Delhi",
-    to: "Varanasi",
-    departure: "06:00",
-    arrival: "14:00",
-    duration: "8h 00m",
-    price: 1950,
-    availability: "Available",
-    rating: 4.9,
-    type: "Premium",
-    amenities: ["food", "wifi", "entertainment", "charging"],
-    classes: ["CC", "EC"]
-  },
-  {
-    id: "5",
-    name: "Tejas Express",
-    number: "22119",
-    from: "Mumbai CST",
-    to: "Karmali",
-    departure: "05:50",
-    arrival: "14:15",
-    duration: "8h 25m",
-    price: 1200,
-    availability: "Limited",
-    rating: 4.5,
-    type: "Premium",
-    amenities: ["food", "wifi", "entertainment", "charging"],
-    classes: ["CC", "EC"]
-  }
-];
+interface TrainData {
+  id: string;
+  name: string;
+  number: string;
+  from: string;
+  to: string;
+  departure: string;
+  arrival: string;
+  duration: string;
+  price: number;
+  availability: string;
+  rating: number;
+  type: string;
+  amenities: string[];
+  classes: string[];
+}
 
 const Trains = () => {
   const [date, setDate] = useState<Date | undefined>(new Date());
@@ -122,31 +56,48 @@ const Trains = () => {
   const [trainType, setTrainType] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [showAmenities, setShowAmenities] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [trains, setTrains] = useState<TrainData[]>([]);
   
-  // Filter amenities
   const [wifiFilter, setWifiFilter] = useState(false);
   const [foodFilter, setFoodFilter] = useState(false);
   const [entertainmentFilter, setEntertainmentFilter] = useState(false);
   const [chargingFilter, setChargingFilter] = useState(false);
   
-  // Get the filtered trains
-  const filteredTrains = trainData.filter((train) => {
-    // Filter by price range
+  useEffect(() => {
+    const fetchTrains = async () => {
+      try {
+        setIsLoading(true);
+        const data = await trainService.getAllTrains();
+        setTrains(data);
+      } catch (error) {
+        console.error("Error fetching trains:", error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to load trains. Please try again later.",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchTrains();
+  }, []);
+  
+  const filteredTrains = trains.filter((train) => {
     if (train.price < priceRange[0] || train.price > priceRange[1]) {
       return false;
     }
     
-    // Filter by train type if selected
     if (trainType && train.type !== trainType) {
       return false;
     }
     
-    // Filter by class if selected
     if (trainClass && !train.classes.includes(trainClass)) {
       return false;
     }
     
-    // Filter by amenities
     if (wifiFilter && !train.amenities.includes("wifi")) {
       return false;
     }

@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { toast } from "@/components/ui/use-toast";
 import { useNavigate } from 'react-router-dom';
+import { authService } from '@/services/api';
 
 // Define interface for user
 interface User {
@@ -9,6 +10,7 @@ interface User {
   name: string;
   email: string;
   role: 'user' | 'admin';
+  token?: string;
 }
 
 // Define interface for auth context
@@ -24,22 +26,6 @@ interface AuthContextType {
 // Create auth context
 const AuthContext = createContext<AuthContextType | null>(null);
 
-// Mock users for demo
-const MOCK_USERS: User[] = [
-  {
-    id: '1',
-    name: 'Admin User',
-    email: 'admin@indiarail.com',
-    role: 'admin',
-  },
-  {
-    id: '2',
-    name: 'Test User',
-    email: 'user@example.com',
-    role: 'user',
-  },
-];
-
 // Auth provider component
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -50,7 +36,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
-      setUser(JSON.parse(storedUser));
+      try {
+        const userData = JSON.parse(storedUser);
+        setUser({
+          id: userData.user.id,
+          name: userData.user.name,
+          email: userData.user.email,
+          role: userData.user.role,
+          token: userData.token
+        });
+      } catch (error) {
+        console.error('Error parsing stored user data:', error);
+        localStorage.removeItem('user');
+      }
     }
     setLoading(false);
   }, []);
@@ -60,38 +58,37 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setLoading(true);
     
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const data = await authService.login(email, password);
       
-      const foundUser = MOCK_USERS.find(u => u.email === email && u.role === 'user');
-      
-      if (foundUser) {
-        setUser(foundUser);
-        localStorage.setItem('user', JSON.stringify(foundUser));
+      if (data.user && data.user.role === 'user') {
+        setUser({
+          id: data.user.id,
+          name: data.user.name,
+          email: data.user.email,
+          role: data.user.role,
+          token: data.token
+        });
+        
         toast({
           title: "Login successful",
-          description: `Welcome back, ${foundUser.name}!`,
+          description: `Welcome back, ${data.user.name}!`,
         });
-        setLoading(false);
+        
         return true;
       } else {
         toast({
           variant: "destructive",
           title: "Login failed",
-          description: "Invalid email or password",
+          description: "Invalid user credentials",
         });
-        setLoading(false);
+        
         return false;
       }
     } catch (error) {
       console.error("Login error:", error);
-      toast({
-        variant: "destructive",
-        title: "Login failed",
-        description: "Something went wrong. Please try again.",
-      });
-      setLoading(false);
       return false;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -100,19 +97,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setLoading(true);
     
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const data = await authService.login(email, password);
       
-      const foundUser = MOCK_USERS.find(u => u.email === email && u.role === 'admin');
-      
-      if (foundUser) {
-        setUser(foundUser);
-        localStorage.setItem('user', JSON.stringify(foundUser));
+      if (data.user && data.user.role === 'admin') {
+        setUser({
+          id: data.user.id,
+          name: data.user.name,
+          email: data.user.email,
+          role: data.user.role,
+          token: data.token
+        });
+        
         toast({
           title: "Admin login successful",
-          description: `Welcome back, ${foundUser.name}!`,
+          description: `Welcome back, ${data.user.name}!`,
         });
-        setLoading(false);
+        
         navigate('/admin/dashboard');
         return true;
       } else {
@@ -121,18 +121,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           title: "Admin login failed",
           description: "Invalid admin credentials",
         });
-        setLoading(false);
+        
         return false;
       }
     } catch (error) {
       console.error("Admin login error:", error);
-      toast({
-        variant: "destructive",
-        title: "Login failed",
-        description: "Something went wrong. Please try again.",
-      });
-      setLoading(false);
       return false;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -141,60 +137,44 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setLoading(true);
     
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const data = await authService.register(name, email, password);
       
-      const existingUser = MOCK_USERS.find(u => u.email === email);
-      
-      if (existingUser) {
-        toast({
-          variant: "destructive",
-          title: "Registration failed",
-          description: "Email already in use",
+      if (data.user) {
+        setUser({
+          id: data.user.id,
+          name: data.user.name,
+          email: data.user.email,
+          role: data.user.role,
+          token: data.token
         });
-        setLoading(false);
+        
+        toast({
+          title: "Registration successful",
+          description: `Welcome, ${name}!`,
+        });
+        
+        return true;
+      } else {
         return false;
       }
-      
-      const newUser: User = {
-        id: Math.random().toString(36).substring(2, 15),
-        name,
-        email,
-        role: 'user',
-      };
-      
-      // In a real app, you would save the user to the database here
-      
-      setUser(newUser);
-      localStorage.setItem('user', JSON.stringify(newUser));
-      
-      toast({
-        title: "Registration successful",
-        description: `Welcome, ${name}!`,
-      });
-      
-      setLoading(false);
-      return true;
     } catch (error) {
       console.error("Registration error:", error);
-      toast({
-        variant: "destructive",
-        title: "Registration failed",
-        description: "Something went wrong. Please try again.",
-      });
-      setLoading(false);
       return false;
+    } finally {
+      setLoading(false);
     }
   };
 
   // Logout function
   const logout = () => {
+    authService.logout();
     setUser(null);
-    localStorage.removeItem('user');
+    
     toast({
       title: "Logged out",
       description: "You have been successfully logged out",
     });
+    
     navigate('/');
   };
 
